@@ -1,3 +1,6 @@
+import numpy as np
+from PIL import Image
+
 def setfreq(px_size_m, img_size_m):
     # setfreq() is a function theat does not accept any inputs, rather it sets the frequency scale of the fourier
     #transformed image allowing the user to make comparasions between
@@ -73,3 +76,29 @@ def ftim(spk_num):
                                                                                                     #key to plot title
     plt.show()
     return Y1, data_1
+
+def read(filepath)
+    return np.asarray(Image.open(filepath))
+
+def display(x,y,img):
+    Dx = x[-1]-x[0]
+    Dy = y[-1]-y[0]
+    extent = (-Dx/2, +D/2 * 1e6, -Dy/2 * 1e6, +Dy/2 * 1e6)
+    plt.imshow(img,extent=extent)
+    plt.show()
+
+def ft(img):
+    return np.fft.fftshift(np.fft.fft2(img))
+
+def fs(real_axis):
+    fs = 1/(real_axis[1]-real_axis[0]) # Setting the unit of the frequncy scale to 1/um (when i do the calculations i get 1/mm)
+    Nfft=len(real_axis)
+            
+    df = fs/Nfft
+    f_cpm = np.linspace(0,(fs-df),Nfft) - (fs-np.mod(Nfft,2)*df)/2 # Do not understand the calculations here.
+    return f_cpm
+
+def circsum(IMG):
+    return np.sum(warp_polar(np.abs(IMG)**2), 0)
+
+
