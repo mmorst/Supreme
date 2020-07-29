@@ -77,7 +77,7 @@ def ftim(spk_num):
     plt.show()
     return Y1, data_1
 
-def read(filepath)
+def read(filepath):
     return np.asarray(Image.open(filepath))
 
 def display(x,y,img):
@@ -87,18 +87,67 @@ def display(x,y,img):
     plt.imshow(img,extent=extent)
     plt.show()
 
-def ft(img):
-    return np.fft.fftshift(np.fft.fft2(img))
-
-def fs(real_axis):
-    fs = 1/(real_axis[1]-real_axis[0]) # Setting the unit of the frequncy scale to 1/um (when i do the calculations i get 1/mm)
-    Nfft=len(real_axis)
-            
-    df = fs/Nfft
-    f_cpm = np.linspace(0,(fs-df),Nfft) - (fs-np.mod(Nfft,2)*df)/2 # Do not understand the calculations here.
-    return f_cpm
-
 def circsum(IMG):
     return np.sum(warp_polar(np.abs(IMG)**2), 0)
+def ft(t):
+    return np.fft.fftshift( np.fft.fft2(np.fft.ifftshift(t)))
+def ift(t):
+    return np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(t)))
+def fs(t):
+    return (np.arange(0,1/(t[1]-t[0]),1/((t[1]-t[0])*len(t)))) - (1/(t[1]-t[0])-np.mod(len(t),2)*1/((t[1]-t[0])*len(t)))/2
+def propTF(E_in,L_m,lambda_m,z_m):
+    #get input field array size
+    (Nx, Ny)=np.shape(E_in); 
+    dx=L_m/Nx; #sample interval
+
+    #(dx<lambda.*z/L)
 
 
+    fx = fs(np.arange(Nx)*dx);
+    if Ny>2:
+        fy = fs(np.arange(Ny)*dx);
+    else:
+        fy = 0;
+
+    [FX,FY]= np.meshgrid(fx,fy);
+
+    H=np.exp(-1j*np.pi*lambda_m*z_m*(FX**2+FY**2))
+
+    E_out = ft(ft(E_in)*H);
+    
+    return E_out
+
+def gaussian(x_px, mean_px, fwhm_px):
+            sigma_x = fwhm_px/(2*np.sqrt(2*np.log(2)));
+            return np.exp(-((x_px-mean_px)/(np.sqrt(2)*sigma_x))**2)
+        
+def generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20):
+    '''generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20)
+    '''
+
+    # define spatial axis
+    x_m = np.linspace(-Dx_m/2,Dx_m/2,int(np.floor(Dx_m/dx_m)))
+    N = len(x_m);
+
+    (X_m,Y_m) = np.meshgrid(x_m,x_m);
+    # define frequency axis
+    f_cpm = fs(x_m);
+    (Fx, Fy) = np.meshgrid(f_cpm,f_cpm);
+
+    # frequency filter
+    GFILT = gaussian(Fx, 0, fc_cpm)*gaussian(Fy, 0, fc_cpm);
+
+    # generation of speckle and propagations
+    noise = np.random.randn(N,N)
+    noise_filt = np.abs(ift(ft(noise)*GFILT));
+    noise_filt = noise_filt/np.std(noise_filt);
+
+    # generate laser beam
+    E0 = gaussian(X_m, 0, 500e-6)*gaussian(Y_m, 0, 500e-6);
+    # add speckle to beam
+    E1 = E0*np.exp(1j*2*np.pi*noise_filt*wfe_w);
+
+    # propagation
+    E2 = propTF(E1,Dx_m,lambda_m,z_m);
+    I = np.abs(E2)**2
+    return I
