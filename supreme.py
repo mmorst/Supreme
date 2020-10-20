@@ -1,4 +1,5 @@
 import numpy as np
+from skimage.transform import warp, warp_polar
 from PIL import Image
 
 def setfreq(px_size_m, img_size_m):
@@ -89,12 +90,23 @@ def display(x,y,img):
 
 def circsum(IMG):
     return np.sum(warp_polar(np.abs(IMG)**2), 0)
+
 def ft(t):
     return np.fft.fftshift( np.fft.fft2(np.fft.ifftshift(t)))
+
 def ift(t):
     return np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(t)))
+
 def fs(t):
-    return (np.arange(0,1/(t[1]-t[0]),1/((t[1]-t[0])*len(t)))) - (1/(t[1]-t[0])-np.mod(len(t),2)*1/((t[1]-t[0])*len(t)))/2
+    # works with Matlab, breaks with python
+    #return (np.arange(0,1/(t[1]-t[0]),1/((t[1]-t[0])*len(t)))) - (1/(t[1]-t[0])-np.mod(len(t),2)*1/((t[1]-t[0])*len(t)))/2
+    
+    # from https://stackoverflow.com/questions/3694918/how-to-extract-frequency-associated-with-fft-values-in-python
+    N = len(t)
+    df_cpm = 1/(t[-1]-t[0])
+    f_cpm = np.fft.fftshift(np.array([df_cpm*n if n<N/2 else df_cpm*(n-N) for n in range(N)]))
+    return f_cpm
+
 def propTF(E_in,L_m,lambda_m,z_m):
     #get input field array size
     (Nx, Ny)=np.shape(E_in); 
@@ -118,15 +130,31 @@ def propTF(E_in,L_m,lambda_m,z_m):
     return E_out
 
 def gaussian(x_px, mean_px, fwhm_px):
-            sigma_x = fwhm_px/(2*np.sqrt(2*np.log(2)));
-            return np.exp(-((x_px-mean_px)/(np.sqrt(2)*sigma_x))**2)
+    '''
+    GAUSSIAN Returns a 1D gaussian
+    gaussian(x_px, mean_px, fwhm_px)
+    :param x_px: numpy array
+    :param mean_px: double
+    :param fwhm_px: double
+    :return: numpy array
+    '''
+    sigma_x = fwhm_px/(2*np.sqrt(2*np.log(2)));
+    return np.exp(-((x_px-mean_px)/(np.sqrt(2)*sigma_x))**2)
         
-def generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20):
-    '''generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20)
+def generate_speckle(dx_m, Dx_m, z_m, fhwm_m=500e-6, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20):
+    '''GENERATE_SPECKLE
+    generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20)
+    :param dx_m: double
+    :param Dx_m: double
+    :param z_m: double
+    :param lambda_m: double
+    :param fc_cpm: double
+    :param wfe_w: double
+    :return: numpy array
     '''
 
     # define spatial axis
-    x_m = np.linspace(-Dx_m/2,Dx_m/2,int(np.floor(Dx_m/dx_m)))
+    x_m = np.linspace(-Dx_m/2,Dx_m/2,int(np.ceil(Dx_m/dx_m)))
     N = len(x_m);
 
     (X_m,Y_m) = np.meshgrid(x_m,x_m);
@@ -143,7 +171,7 @@ def generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20):
     noise_filt = noise_filt/np.std(noise_filt);
 
     # generate laser beam
-    E0 = gaussian(X_m, 0, 500e-6)*gaussian(Y_m, 0, 500e-6);
+    E0 = gaussian(X_m, 0, fhwm_m)*gaussian(Y_m, 0, fhwm_m);
     # add speckle to beam
     E1 = E0*np.exp(1j*2*np.pi*noise_filt*wfe_w);
 
@@ -151,3 +179,16 @@ def generate_speckle(dx_m, Dx_m, z_m, lambda_m=1e-6, fc_cpm =1e6, wfe_w=1/20):
     E2 = propTF(E1,Dx_m,lambda_m,z_m);
     I = np.abs(E2)**2
     return I
+ 
+def azimuthal_avg(data_2d):
+    '''
+    AZIMUTHAL_AVG Azimuthal average of a 2D square image
+    azimuthal_avg(data_2d)
+    :param data_2d: square 2D numpy array
+    :return: numpy 1D array
+    '''
+    Np = int(np.floor((len(data_2d)+1)/2))
+    azimuthal_avg = np.sum(warp_polar(data_2d), 0)
+    return azimuthal_avg[0:(Np-1)]
+
+#imshow(x_m, I, zoom=1.0)
